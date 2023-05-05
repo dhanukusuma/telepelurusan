@@ -1,0 +1,117 @@
+from selenium import webdriver
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import NoSuchElementException
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram import Update
+import sys, re, requests, telegram, time, traceback
+
+chat_id='my_id'
+token = 'my_token'
+
+# Open a new tab and switch to it
+driver = webdriver.Chrome()
+
+# Load the URL and wait for you to switch to the tab
+url = 'https://gladius.telkom.co.id/newncx/newrmt2'
+driver.get(url)
+
+# Define the sign-in credentials
+username = 'pttatre2_20930041'
+password = 'WhatTh3Fuck?'
+verifikasi_number = '123456'
+# Wait for the sign-in form to appear
+WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, 'uname')))
+
+# Find the username and password input fields
+username_field = driver.find_element(By.NAME, 'uname')
+password_field = driver.find_element(By.NAME, 'passw')
+
+# Populate the input fields with the desired values
+username_field.send_keys(username)
+password_field.send_keys(password)
+
+
+WebDriverWait(driver, 70).until(EC.presence_of_element_located((By.NAME, 'verifikasi')))
+verifikasi_field = driver.find_element(By.NAME, 'verifikasi')
+
+# Populate the verification number input field with the desired value
+verifikasi_field.send_keys(str(verifikasi_number))
+
+def handle_message(update, context, driver):
+           
+    # Check if the photo has a caption
+    if update.message.caption:
+    # Extract the text from the caption
+        text = update.message.caption
+        
+    else:
+        # If the message doesn't contain a photo or file, extract the text from the message
+        text = update.message.text
+
+
+    #Log CMD
+    print(f"Received message: {text}")
+
+    # Use regular expressions to extract the number and the text starting from "CLID baru:"
+    number_match = re.search(r'\b\d{12}\b', text)
+        
+    print(f"Number match: {number_match}")
+    
+    # If a number is found, add it to the response message
+    response_message = ''
+    if number_match:
+        number = number_match.group()
+        response_message += f"{number}\n"
+        
+    # If there is a response message, send it back as a single reply
+    if response_message:
+        response_list = response_message.strip().split('\n')
+        for response in response_list:
+            update.message.reply_text(response.strip())
+
+        # Use Selenium WebDriver to interact with the website
+        try:
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#number")))
+            internet_number = driver.find_element(By.NAME, 'number')
+            
+        # Send the data to the input boxes
+            internet_number.clear()
+            internet_number.send_keys(number_match.group())
+            submit_button = driver.find_element(By.ID, 'check')
+            submit_button.click()
+               
+        except:
+            print("An error occurred while filling the form.")
+
+        try:
+        # Wait for the pop-up message to appear and click OK      
+            element = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div.alert')))
+            alert_text = element.text
+            telegram_api_url = f'https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text=<code>{alert_text}</code>&parse_mode=HTML'
+            response = requests.get(telegram_api_url)    
+        except TimeoutException:
+            print("No pop-up message appeared.")
+                        
+# Define a function to handle errors
+def handle_error(update, context):
+    print(context.error)
+
+# Create an Updater object and attach the handlers to it
+updater = Updater(token="my_token", use_context=True)
+
+dispatcher = updater.dispatcher
+message_handler = MessageHandler(Filters.all, lambda update, context: handle_message(update, context, driver))
+error_handler = MessageHandler(Filters.all, handle_error)
+dispatcher.add_handler(message_handler)
+dispatcher.add_handler(error_handler)
+dispatcher.add_error_handler(handle_error)
+
+# Start polling for new messages
+updater.start_polling()
+updater.idle()
+
+# Close the driver after polling stops
+driver.quit()
